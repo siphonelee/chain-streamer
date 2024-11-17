@@ -1,0 +1,27 @@
+[package]
+name = "hls"
+version = "0.4.1"
+edition = "2018"
+
+[dependencies]
+byteorder = "1.4.2"
+bytes = "1.0.0"
+failure = "0.1.8"
+log = "0.4"
+axum = { version = "0.7.4" }
+tokio-util = { version = "0.7.12", features = ["codec"] }
+
+streamhub = { path = "../../library/streamhub/" }
+xmpegts = { path = "../../library/container/mpegts/" }
+xflv = { path = "../../library/container/flv/" }
+commonlib = { path = "../../library/common/" }
+rand = "0.8.5"
+reqwest = "0.12.9"
+futures = "0.3.31"
+ureq = "2.10.1"
+regex = "1.11.1"
+
+[dependencies.tokio]
+version = "1.4.0"
+default-features = false
+features = ["full"]

@@ -1,0 +1,15 @@
+[package]
+name = "xflv"
+version = "0.3.0"
+edition = "2018"
+
+[dependencies]
+byteorder = "1.4.2"
+bytes = "1.0.0"
+failure = "0.1.8"
+serde = { version = "1.0", features = ["derive", "rc"] }
+log = "0.4"
+indexmap = "2.6.0"
+
+bytesio = { path = "../../bytesio/" }
+h264-decoder = { path = "../../codec/h264/" }

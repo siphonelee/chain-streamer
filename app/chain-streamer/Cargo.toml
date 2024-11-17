@@ -1,0 +1,36 @@
+[package]
+name = "chain-streamer"
+version = "0.9.0"
+edition = "2018"
+
+[dependencies]
+toml = "0.8.19"
+serde_derive = "1.0"
+serde = { version = "1.0.101", optional = true, features = ["derive"] }
+anyhow = "^1.0"
+log = "0.4.0"
+failure = "0.1.8"
+clap = "4.1.4"
+libc = "0.2.139"
+serde_json = { version = "1", default-features = false, features = [
+    "alloc",
+    "raw_value",
+    "std",
+] }
+axum = "0.7.7"
+tokio-metrics = { version = "0.3.1", default-features = false }
+
+env_logger_extend = { path = "../library/logger/" }
+streamhub = { path = "../library/streamhub/" }
+commonlib = { path = "../library/common/" }
+rtmp = { path = "../protocol/rtmp/" }
+hls = { path = "../protocol/hls/" }
+
+[features]
+default = ["std"]
+std = ["serde"]
+
+[dependencies.tokio]
+version = "1.26.0"
+default-features = false
+features = ["full"]
