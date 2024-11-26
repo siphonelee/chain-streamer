@@ -69,7 +69,7 @@ impl FlvDataReceiver {
                     _ => continue,
                 };
                 retry_count = 0;
-                self.media_processor.process_flv_data(flv_data)?;
+                self.media_processor.process_flv_data(flv_data).await?;
             } else {
                 sleep(Duration::from_millis(100)).await;
                 retry_count += 1;
@@ -79,7 +79,7 @@ impl FlvDataReceiver {
             //will do an optimization in the future.
             //todo
             if retry_count > 10 {
-                self.media_processor.flush_remaining_data()?;
+                self.media_processor.flush_remaining_data().await?;
                 break;
             }
         }

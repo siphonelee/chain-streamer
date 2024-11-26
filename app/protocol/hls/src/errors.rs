@@ -39,6 +39,24 @@ pub enum MediaErrorValue {
     BlobIdParseError,
     #[fail(display = "walrus upload error")]
     WalrusUploadError,
+    #[fail(display = "sui client setup error")]
+    SetupSuiClientError,
+    #[fail(display = "get sui coin error")]
+    GetSuiCoinError,
+    #[fail(display = "PTB input error")]
+    PTBInputError,
+    #[fail(display = "identifier format error")]
+    IdentifierFormatError,
+    #[fail(display = "sui RPC error")]
+    SuiRPCError,
+    #[fail(display = "transaction sign error")]
+    TransactionSignError,
+    #[fail(display = "sui config error")]
+    SuiConfigError,
+    #[fail(display = "key store error")]
+    FileKeyStoreError,
+    #[fail(display = "transaction block execute error")]
+    TransactionBlockExecuteError,
 }
 
 impl From<FlvDemuxerError> for MediaError {

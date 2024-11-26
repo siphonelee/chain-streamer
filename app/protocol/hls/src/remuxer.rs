@@ -39,7 +39,7 @@ impl HlsRemuxer {
                             app_name,
                             stream_name,
                             self.event_producer.clone(),
-                            20,   // calvin NOTE: the duration length depends on walrus confirmation speed
+                            25,   // calvin NOTE: the duration length depends on walrus confirmation speed
                             self.need_record,
                         );
 

@@ -1,5 +1,4 @@
 use {
-    //https://rustcc.cn/article?id=6dcbf032-0483-4980-8bfe-c64a7dfb33c7
     anyhow::Result,
     clap::{value_parser, Arg, Command},
     env_logger_extend::logger::{Logger, Rotate},
@@ -120,13 +119,7 @@ async fn main() -> Result<()> {
     /*run the service*/
     let mut service = Service::new(config);
     service.run().await?;
-
-    // log::info!("log info...");
-    // log::warn!("log warn...");
-    // log::error!("log err...");
-    // log::trace!("log trace...");
-    // log::debug!("log debug...");
-
+    
     signal::ctrl_c().await?;
     logger.stop();
     Ok(())

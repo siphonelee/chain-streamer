@@ -64,7 +64,7 @@ impl Flv2HlsRemuxer {
         }
     }
 
-    pub fn process_flv_data(&mut self, data: FlvData) -> Result<(), MediaError> {
+    pub async fn process_flv_data(&mut self, data: FlvData) -> Result<(), MediaError> {
         let flv_demux_data: FlvDemuxerData = match data {
             FlvData::Audio { timestamp, data } => {
                 let audio_data = self.audio_demuxer.demux(timestamp, data)?;
@@ -80,12 +80,12 @@ impl Flv2HlsRemuxer {
             _ => return Ok(()),
         };
 
-        self.process_demux_data(&flv_demux_data)?;
+        self.process_demux_data(&flv_demux_data).await?;
 
         Ok(())
     }
 
-    pub fn flush_remaining_data(&mut self) -> Result<(), MediaError> {
+    pub async fn flush_remaining_data(&mut self) -> Result<(), MediaError> {
         let data = self.ts_muxer.get_data();
         let mut discontinuity: bool = false;
         if self.last_dts > self.last_ts_dts + 15 * 1000 {
@@ -97,12 +97,12 @@ impl Flv2HlsRemuxer {
             true,
             data,
         )?;
-        self.m3u8_handler.refresh_playlist()?;
+        self.m3u8_handler.refresh_playlist().await?;
 
         Ok(())
     }
 
-    pub fn process_demux_data(
+    pub async fn process_demux_data(
         &mut self,
         flv_demux_data: &FlvDemuxerData,
     ) -> Result<(), MediaError> {
@@ -154,7 +154,7 @@ impl Flv2HlsRemuxer {
 
             self.m3u8_handler
                 .add_segment(dts - self.last_ts_dts, discontinuity, false, data)?;
-            self.m3u8_handler.refresh_playlist()?;
+            self.m3u8_handler.refresh_playlist().await?;
 
             self.ts_muxer.reset();
             self.last_ts_dts = dts;
