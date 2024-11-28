@@ -1,15 +1,11 @@
 use {
-    super::{errors::{MediaError, MediaErrorValue}, ts::Ts}, crate::sui_utils::setup_for_write, bytes::{Buf, BytesMut}, futures::executor, rand::prelude::*, regex::Regex, shared_crypto::intent::Intent, std::{collections::VecDeque, error::Error, fs::{self, File}, io::{Cursor, Read, Write}, time::{Duration, SystemTime}}, sui_config::{sui_config_dir, SUI_KEYSTORE_FILENAME}, sui_keys::keystore::{AccountKeystore, FileBasedKeystore}, sui_sdk::{
-        rpc_types::SuiTransactionBlockResponseOptions, types::{
-            base_types::ObjectID,
-            programmable_transaction_builder::ProgrammableTransactionBuilder,
-            quorum_driver_types::ExecuteTransactionRequestType,
-            transaction::{Argument, CallArg, Command, Transaction, TransactionData},
-            Identifier,
-        }
-    },
-    std::sync::{Arc, Mutex},
-    tokio::{fs::File as TkFile, io::{self}, runtime::Runtime}
+    super::{errors::{MediaError, MediaErrorValue}, ts::Ts}, crate::sui_utils::setup_for_write, bytes::{Buf, BytesMut}, futures::executor, rand::prelude::*, regex::Regex, shared_crypto::intent::Intent, std::{collections::VecDeque, error::Error, fs::{self, File}, io::{Cursor, Read, Write}, sync::{Arc, Mutex}, time::{Duration, SystemTime}}, sui_config::{sui_config_dir, SUI_KEYSTORE_FILENAME}, sui_keys::keystore::{AccountKeystore, FileBasedKeystore}, sui_sdk::{
+        rpc_types::{SuiObjectDataOptions, SuiObjectResponseQuery, SuiTransactionBlockResponseOptions},
+        types::{
+            base_types::{ObjectID, SequenceNumber}, programmable_transaction_builder::ProgrammableTransactionBuilder, quorum_driver_types::ExecuteTransactionRequestType, transaction::{Command, ObjectArg, Transaction, TransactionData}, Identifier
+        },
+        SuiClientBuilder,
+    }, sui_types::transaction::CallArg, tokio::{fs::File as TkFile, io::{self}, runtime::Runtime}
 };
 
 const PUBLIC_AGGREGATORS: [&str;1] = [
@@ -33,6 +29,9 @@ const PUBLIC_AGGREGATORS: [&str;1] = [
 ];
 
 const BLOBID_REGEXP_STR: &str = "\"blobId\":\"(.*?)\",";
+const CONTRACT_PACKAGE: &str = "0x8f50dd1f7112da0d7b9260db347b79c6cd2bdb1da3737ff79601bdb958322e70";
+const STREAMER_ADDR: &str = "0xf55e4d801568a13b69c699bdb31f1860737a4bfa0c8b7f4b4597764d4137c0a2";
+const CLOCK_OBJ_ID: &str = "0x0000000000000000000000000000000000000000000000000000000000000006";
 
 pub struct Segment {
     /*ts duration*/
@@ -135,7 +134,7 @@ impl M3u8 {
         let aggr_url = PUBLIC_AGGREGATORS.get(index).unwrap();
         
         let publish_url = (*aggr_url).to_owned() + "/v1/store";
-        println!("publish to: {}", publish_url);
+        log::info!("publish to: {}", publish_url);
 
         let now = SystemTime::now();
        
@@ -153,14 +152,14 @@ impl M3u8 {
 
         let regexp = Regex::new(BLOBID_REGEXP_STR).unwrap();
         let Some(caps) = regexp.captures(text.as_str()) else {
-            println!("blobId not match: {}", text);
+            log::error!("blobId not match: {}", text);
             return Err(MediaError{value: MediaErrorValue::BlobIdParseError});
         };
 
         let blob_id = &caps[1];
-        println!("{}", blob_id);
-        println!("seconds: {:?}", span);
-        println!("{}", "--------------------");
+        log::info!("blob_id: {}", blob_id);
+        log::info!("seconds: {:?}", span);
+        log::info!("{}", "--------------------");
 
         Ok(blob_id.to_owned())
     }
@@ -234,52 +233,63 @@ impl M3u8 {
         m3u8_header
     }
 
+
     async fn upload_playlist_to_contract(&self, m3u8_content: &String) -> Result<(), MediaError> {
         let now = SystemTime::now();
 
         // 1) get the Sui client, the sender and recipient that we will use
         // for the transaction, and find the coin we use as gas       
         let (sui, sender, _recipient) = setup_for_write().await
-                                    .map_err(|e| MediaError{value: MediaErrorValue::SetupSuiClientError})?;
+                                    .map_err(|_| MediaError{value: MediaErrorValue::SetupSuiClientError})?;
 
         // we need to find the coin we will use as gas
         let coins = sui
             .coin_read_api()
             .get_coins(sender, None, None, None).await
-            .map_err(|e| MediaError{value: MediaErrorValue::GetSuiCoinError})?;
+            .map_err(|_| MediaError{value: MediaErrorValue::GetSuiCoinError})?;
         let coin = coins.data.into_iter().next().unwrap();
 
          // 2) create a programmable transaction builder to add commands and create a PTB
         let mut ptb = ProgrammableTransactionBuilder::new();
 
-        // Create an Argument::Input for Pure 6 value of type u64
-        let input_value = 10u64;
-        let input_argument = CallArg::Pure(bcs::to_bytes(&input_value).unwrap());
+        // Create Argument::Input
+        let sui_client = sui_sdk::SuiClientBuilder::default().build_testnet().await.unwrap();
+        let streamer_id: ObjectID = STREAMER_ADDR.parse().map_err(|_| MediaError{value: MediaErrorValue::ParseError})?;
+        let streamer_obj = sui_client.read_api().get_object_with_options(streamer_id, SuiObjectDataOptions::bcs_lossless()).await.unwrap().data.unwrap();
+        let streamer_input = ptb.input(CallArg::Object(ObjectArg::ImmOrOwnedObject((streamer_obj.object_id, streamer_obj.version, streamer_obj.digest)))).unwrap();
+
+        let clock_id: ObjectID = CLOCK_OBJ_ID.parse().map_err(|_| MediaError{value: MediaErrorValue::ParseError})?;
+        let clock_input = ptb.obj(ObjectArg::SharedObject {
+            id: clock_id,
+            initial_shared_version: SequenceNumber::from(1),
+            mutable: false,
+        }).map_err(|_| MediaError{value: MediaErrorValue::PTBObjError})?;
     
-        // Add this input to the builder
-        if ptb.input(input_argument).is_err() {
-            return Err(MediaError{value: MediaErrorValue::PTBInputError});
+        let mut path = self.ts_handler.get_live_path();
+        if path.starts_with(".") {
+            path = path.as_str()[1..].to_owned();
         }
-    
+        let live_url = ptb.input(CallArg::Pure(bcs::to_bytes(&path).unwrap())).unwrap();
+        let m3u8 = ptb.input(CallArg::Pure(bcs::to_bytes(m3u8_content).unwrap())).unwrap();
+
         // 3) add a move call to the PTB
         // Replace the pkg_id with the package id you want to call
-        let pkg_id = "0x883393ee444fb828aa0e977670cf233b0078b41d144e6208719557cb3888244d";
-        let package = ObjectID::from_hex_literal(pkg_id).map_err(|e| MediaError{value: MediaErrorValue::IdentifierFormatError})?;
-        let module = Identifier::new("hello_wolrd").map_err(|e| MediaError{value: MediaErrorValue::IdentifierFormatError})?;
-        let function = Identifier::new("hello_world").map_err(|e| MediaError{value: MediaErrorValue::IdentifierFormatError})?;
+        let package = ObjectID::from_hex_literal(CONTRACT_PACKAGE).map_err(|_| MediaError{value: MediaErrorValue::IdentifierFormatError})?;
+        let module = Identifier::new("streamer").map_err(|_| MediaError{value: MediaErrorValue::IdentifierFormatError})?;
+        let function = Identifier::new("update_live_stream").map_err(|_| MediaError{value: MediaErrorValue::IdentifierFormatError})?;
         ptb.command(Command::move_call(
             package,
             module,
             function,
             vec![],
-            vec![Argument::Input(0)],
+            vec![streamer_input, clock_input, live_url, m3u8],
         ));
     
         // build the transaction block by calling finish on the ptb
         let builder = ptb.finish();
     
         let gas_budget = 10_000_000;
-        let gas_price = sui.read_api().get_reference_gas_price().await.map_err(|e| MediaError{value: MediaErrorValue::SuiRPCError})?;
+        let gas_price = sui.read_api().get_reference_gas_price().await.map_err(|_| MediaError{value: MediaErrorValue::SuiRPCError})?;
 
         // create the transaction data that will be sent to the network
         let tx_data = TransactionData::new_programmable(
@@ -292,10 +302,10 @@ impl M3u8 {
     
         // 4) sign transaction
         let keystore = FileBasedKeystore::new(
-            &sui_config_dir().map_err(|e| MediaError{value: MediaErrorValue::SuiConfigError})?.join(SUI_KEYSTORE_FILENAME))
-                .map_err(|e| MediaError{value: MediaErrorValue::FileKeyStoreError})?;
+            &sui_config_dir().map_err(|_| MediaError{value: MediaErrorValue::SuiConfigError})?.join(SUI_KEYSTORE_FILENAME))
+                .map_err(|_| MediaError{value: MediaErrorValue::FileKeyStoreError})?;
         let signature = keystore.sign_secure(&sender, &tx_data, Intent::sui_transaction())
-                                .map_err(|e| MediaError{value: MediaErrorValue::TransactionSignError})?;
+                                .map_err(|_| MediaError{value: MediaErrorValue::TransactionSignError})?;
     
         // 5) execute the transaction
         print!("Executing the transaction...");
@@ -306,27 +316,36 @@ impl M3u8 {
                 SuiTransactionBlockResponseOptions::full_content(),
                 Some(ExecuteTransactionRequestType::WaitForLocalExecution),
             )
-            .await.map_err(|e| MediaError{value: MediaErrorValue::TransactionBlockExecuteError})?;
+            .await.map_err(|_| MediaError{value: MediaErrorValue::TransactionBlockExecuteError})?;
 
         let span = SystemTime::now().duration_since(now).unwrap().as_secs();
-        println!("{}", transaction_response);
-        println!("seconds: {}", span);
-        println!("{}", "-------------------------------");
+        log::info!("{}", transaction_response);
+        log::info!("seconds: {}", span);
+        log::info!("{}", "-------------------------------");
 
         Ok(())
     }
 
     pub async fn refresh_playlist(&mut self) -> Result<String, MediaError> {
         let mut m3u8_content = self.generate_m3u8_header(false);
+        let mut m3u8_content_blob = m3u8_content.clone();
 
         for segment in &self.segments {
             if segment.discontinuity {
                 m3u8_content += "#EXT-X-DISCONTINUITY\n";
+                m3u8_content_blob += "#EXT-X-DISCONTINUITY\n";
             }
             m3u8_content += format!(
                 "#EXTINF:{:.3}\n{}\n",
                 segment.duration as f64 / 1000.0,
                 segment.name
+            )
+            .as_str();
+
+            m3u8_content_blob += format!(
+                "#EXTINF:{:.3}\n{}\n",
+                segment.duration as f64 / 1000.0,
+                segment.blob_id
             )
             .as_str();
 
@@ -342,7 +361,7 @@ impl M3u8 {
         file_handler.write_all(m3u8_content.as_bytes())?;
 
         // calvin TODO: upload m3u8 to contract
-        self.upload_playlist_to_contract(&m3u8_content).await?;
+        self.upload_playlist_to_contract(&m3u8_content_blob).await?;
 
         Ok(m3u8_content)
     }

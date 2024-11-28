@@ -57,6 +57,10 @@ pub enum MediaErrorValue {
     FileKeyStoreError,
     #[fail(display = "transaction block execute error")]
     TransactionBlockExecuteError,
+    #[fail(display = "parse error")]
+    ParseError,
+    #[fail(display = "sui ptb object error")]
+    PTBObjError,
 }
 
 impl From<FlvDemuxerError> for MediaError {

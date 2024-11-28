@@ -32,4 +32,8 @@ impl Ts {
     pub fn delete(&mut self, ts_file_name: String) {
         fs::remove_file(ts_file_name).unwrap();
     }
+
+    pub fn get_live_path(&self) -> String {
+        self.live_path.clone()
+    }
 }
