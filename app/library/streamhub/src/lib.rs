@@ -17,6 +17,7 @@ pub mod stream;
 pub mod utils;
 
 use {
+    commonlib::{move_call, errors::SuiError},
     crate::notify::Notifier,
     define::{
         BroadcastEvent, BroadcastEventReceiver, BroadcastEventSender, DataReceiver, DataSender,
@@ -84,7 +85,7 @@ impl StreamDataTransceiver {
                     data: _,
                 } => {}
                 FrameData::Audio { timestamp, data } => {
-                    let data = FrameData::Audio {
+                    let data: FrameData = FrameData::Audio {
                         timestamp,
                         data: data.clone(),
                     };
@@ -727,6 +728,23 @@ impl StreamsHub {
                         Ok(rv) => rv,
                         Err(err) => {
                             log::error!("event_loop api error: {}", err);
+                            json!(err.to_string())
+                        }
+                    };
+
+                    if let Err(err) = result_sender.send(result) {
+                        log::error!("event_loop api error: {}", err);
+                    }
+                }
+                StreamHubEvent::ApiQueryM3u8 {
+                    name,
+                    result_sender,
+                } => {
+                    // calvin
+                    let result = match move_call::get_playlist(name).await {
+                        Ok(v) => Value::String(v),
+                        Err(SuiError{value: err}) => {
+                            log::error!("get_playlist api error: {}", err);
                             json!(err.to_string())
                         }
                     };

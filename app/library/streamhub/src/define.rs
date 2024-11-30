@@ -274,6 +274,11 @@ pub enum StreamHubEvent {
         result_sender: StatisticApiResultSender,
     },
     #[serde(skip_serializing)]
+    ApiQueryM3u8 { 
+        name: String,
+        result_sender: StatisticApiResultSender,    
+    },
+    #[serde(skip_serializing)]
     ApiKickClient { id: Uuid },
     #[serde(skip_serializing)]
     ApiStartRelayStream {

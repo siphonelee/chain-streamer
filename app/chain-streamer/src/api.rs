@@ -1,13 +1,11 @@
 use {
     anyhow::Result,
     axum::{
-        extract::Query,
-        routing::{get, post},
-        Json, Router,
+        extract::Query, response::{Response, IntoResponse}, body::Body, routing::{get, post}, Json, Router
     },
     serde::Deserialize,
     serde_json::Value,
-    std::{net::{SocketAddr}, sync::Arc},
+    std::{net::SocketAddr, sync::Arc},
     streamhub::{
         define::{self, RelayType, StreamHubEventSender},
         stream::StreamIdentifier,
@@ -33,6 +31,11 @@ struct KickOffClientParams {
 struct QueryWholeStreamsParams {
     // query top N by subscriber's count.
     top: Option<usize>,
+}
+
+#[derive(Deserialize)]
+struct QueryM3u8Param {
+    stream_name: String,
 }
 
 #[derive(Deserialize)]
@@ -100,6 +103,50 @@ impl ApiService {
                 Json(api_response)
             }
         }
+    }
+
+    async fn query_m3u8(&self, param: QueryM3u8Param) -> Response<Body> {
+        log::info!("query_m3u8_streams: {:?}", param.stream_name);
+        let (result_sender, result_receiver) = oneshot::channel();
+        let hub_event = define::StreamHubEvent::ApiQueryM3u8 {
+            name: param.stream_name,
+            result_sender
+        };
+        if let Err(err) = self.channel_event_producer.send(hub_event) {
+            log::error!("send api event error: {}", err);
+        }
+
+        let body = match result_receiver.await {
+            Ok(val) => {
+                val.as_str().unwrap().to_owned()
+            }
+            Err(err) => {
+                err.to_string()
+            }
+        };
+        let builder = Response::builder().header("Content-Type", "application/x-mpegURL");
+        return builder.body(Body::from(body)).unwrap();
+
+        /* calvin
+        match result_receiver.await {
+            Ok(val) => {
+                let api_response = ApiResponse {
+                    error_code: 0,
+                    desp: String::from("succ"),
+                    data: val,
+                };
+                Json(api_response)
+            }
+            Err(err) => {
+                let api_response = ApiResponse {
+                    error_code: -1,
+                    desp: String::from("failed"),
+                    data: serde_json::json!(err.to_string()),
+                };
+                Json(api_response)
+            }
+        }
+        */
     }
 
     async fn query_stream(&self, stream: QueryStreamParams) -> Json<ApiResponse<Value>> {
@@ -266,6 +313,11 @@ pub async fn run(producer: StreamHubEventSender, port: usize) {
         api_query_streams.query_whole_streams(params).await
     };
 
+    let api_get_m3u8 = api.clone();
+    let query_m3u8 = move |Query(params): Query<QueryM3u8Param>| async move {
+        api_get_m3u8.query_m3u8(params).await
+    };
+
     let api_query_stream = api.clone();
     let query_stream = move |Json(stream): Json<QueryStreamParams>| async move {
         api_query_stream.query_stream(stream).await
@@ -292,6 +344,7 @@ pub async fn run(producer: StreamHubEventSender, port: usize) {
     let app = Router::new()
         .route("/", get(root))
         .route("/api/query_whole_streams", get(query_streams))
+        .route("/api/query_m3u8", get(query_m3u8))
         .route("/api/query_stream", post(query_stream))
         .route("/api/kick_off_client", post(kick_off))
         .route("/api/start_relay_stream", post(start_relay_stream))

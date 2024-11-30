@@ -39,7 +39,7 @@ impl Config {
             hls_config = Some(HlsConfig {
                 enabled: true,
                 port: hls_port,
-                need_record: false,
+                need_record: true,
                 auth: None,
             });
         }
