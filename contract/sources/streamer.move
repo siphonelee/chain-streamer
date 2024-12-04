@@ -11,6 +11,7 @@ module streamer::streamer {
 
     public struct LiveStreamInfo has copy, store, drop {
         name: String,
+        desc: String,
         start_at: u64,
         last_update_at: u64,
         m3u8_content: String,
@@ -18,6 +19,7 @@ module streamer::streamer {
 
     public struct VodStreamInfo has copy, store, drop {
         name: String,
+        desc: String,
         upload_at: u64,
         m3u8_content: String,
     }
@@ -58,12 +60,13 @@ module streamer::streamer {
     }
 
     public fun create_live_stream(streams: &mut Streams, clock: &Clock, 
-                                url: String, name: String, _ctx: &mut TxContext) {                
+                                url: String, name: String, desc: String, _ctx: &mut TxContext) {                
         let s = streams.live_streams.try_get(&url);
         assert!(s.is_none(), ELiveStreamUrlAlreadyExists);
 
         let stream = LiveStreamInfo {
             name,
+            desc,
             start_at: clock.timestamp_ms(),
             last_update_at: 0u64,
             m3u8_content: string::utf8(b""),
@@ -82,9 +85,10 @@ module streamer::streamer {
     } 
 
     public fun add_vod_stream(streams: &mut Streams, clock: &Clock, 
-                            name: String, m3u8_content: String, _ctx: &mut TxContext) {        
+                            name: String, desc: String, m3u8_content: String, _ctx: &mut TxContext) {        
         let stream = VodStreamInfo {
             name,
+            desc,
             upload_at: clock.timestamp_ms(),
             m3u8_content,
         };
@@ -97,7 +101,7 @@ module streamer::streamer {
                             url: String, full_m3u8_content: String, _ctx: &mut TxContext) {        
         // will abort if the key not exists
         let (_, v) = streams.live_streams.remove(&url);
-        add_vod_stream(streams, clock, v.name, full_m3u8_content, _ctx);
+        add_vod_stream(streams, clock, v.name, v.desc, full_m3u8_content, _ctx);
     } 
 
     public fun get_all_streams(streams: &mut Streams, _ctx: &mut TxContext): AllStreamsInfo {
@@ -116,6 +120,7 @@ module streamer::streamer {
 
         let info = LiveStreamInfo {
             name: s.borrow().name,
+            desc: s.borrow().desc,
             start_at: s.borrow().start_at,
             last_update_at: s.borrow().last_update_at,
             m3u8_content: s.borrow().m3u8_content,

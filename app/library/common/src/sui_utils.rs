@@ -46,6 +46,7 @@ pub const SUI_FAUCET: &str = "https://faucet.testnet.sui.io/v1/gas"; // testnet 
 /// e.g., transferring objects from one address to another.
 pub async fn setup_for_write() -> Result<(SuiClient, SuiAddress, SuiAddress), anyhow::Error> {
     let (client, active_address) = setup_for_read().await?;
+
     // make sure we have some SUI (5_000_000 MIST) on this address
     let coin = fetch_coin(&client, &active_address).await?;
     if coin.is_none() {
@@ -292,12 +293,15 @@ pub fn retrieve_wallet() -> Result<WalletContext, anyhow::Error> {
     let mut keystore = FileBasedKeystore::new(&keystore_path)?;
     let mut client_config: SuiClientConfig = PersistedConfig::read(&wallet_conf)?;
 
-    let default_active_address = if let Some(address) = keystore.addresses().first() {
+    let mut default_active_address = if let Some(address) = keystore.addresses().first() {
         *address
     } else {
         keystore
             .generate_and_add_new_key(ED25519, None, None, None)?
             .0
+    };
+    if let Some(address) = client_config.active_address {
+        default_active_address = address;
     };
 
     if keystore.addresses().len() < 2 {

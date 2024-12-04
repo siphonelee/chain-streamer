@@ -9,8 +9,8 @@ use {
     }
 };
 
-const CONTRACT_PACKAGE: &str = "0x8f50dd1f7112da0d7b9260db347b79c6cd2bdb1da3737ff79601bdb958322e70";
-const STREAMER_ADDR: &str = "0xf55e4d801568a13b69c699bdb31f1860737a4bfa0c8b7f4b4597764d4137c0a2";
+const CONTRACT_PACKAGE: &str = "0x0ec2af16739e913c73497b07e303b95d88db2fe450cf477698a92cb3af65a93b";
+const STREAMER_ADDR: &str = "0x408018711c49bcbf3cd66743ecce17657fb7bad948b175453e5a5289e7132f72";
 const CLOCK_OBJ_ID: &str = "0x0000000000000000000000000000000000000000000000000000000000000006";
 const AGGREGATOR_URL_PREFIX: &str = "https://aggregator.walrus-testnet.walrus.space/v1/";
 
@@ -24,6 +24,7 @@ pub struct LiveM3u8Info {
     pub last_update_at: String,
     pub m3u8_content: String,
     pub name: String,
+    pub desc: String,
     pub start_at: String,
 }
 
