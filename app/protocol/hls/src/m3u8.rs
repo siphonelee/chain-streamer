@@ -1,5 +1,5 @@
 use {
-    commonlib::move_call::upload_playlist_to_contract,
+    commonlib::move_call::{upload_playlist_to_contract, live_to_vod},
     super::{errors::{MediaError, MediaErrorValue}, ts::Ts}, bytes::BytesMut, rand::prelude::*, regex::Regex, std::{collections::VecDeque, fs::{self, File}, io::{Cursor, Write}, time::SystemTime}, 
 };
 
@@ -189,13 +189,16 @@ impl M3u8 {
         Ok(())
     }
 
-    pub fn clear(&mut self) -> Result<(), MediaError> {
+    pub async fn clear(&mut self) -> Result<(), MediaError> {
         // TODO calvin: upload vod m3u8 to contract, and delete live stream from contract
         if self.need_record {
             let vod_m3u8_path = format!("{}/{}", self.m3u8_folder, self.vod_m3u8_name);
             let mut file_handler = File::create(vod_m3u8_path).unwrap();
             self.vod_m3u8_content += "#EXT-X-ENDLIST\n";
             file_handler.write_all(self.vod_m3u8_content.as_bytes())?;
+
+            // calvin: upload full m3u8 to contarct
+            live_to_vod(self.ts_handler.get_live_path(), &self.vod_m3u8_content).await.map_err(|_| MediaError{value: MediaErrorValue::LiveToVodUploadError})?;
         } else {
             for segment in &self.segments {
                 self.ts_handler.delete(segment.path.clone());
@@ -259,13 +262,13 @@ impl M3u8 {
         let mut file_handler = File::create(m3u8_path).unwrap();
         file_handler.write_all(m3u8_content.as_bytes())?;
 
-        // calvin TODO: upload m3u8 to contract
+        // calvin: upload m3u8 to contract
         upload_playlist_to_contract(self.ts_handler.get_live_path(), &m3u8_content_blob).await.map_err(|_| MediaError{value: MediaErrorValue::PlaylistUploadError})?;
 
         Ok(m3u8_content)
     }
 
-    // calvin TODO: change name to walrus blob url
+    // calvin: change name to walrus blob url
     pub fn update_vod_m3u8(&mut self, segment: &Segment) {
         if segment.discontinuity {
             self.vod_m3u8_content += "#EXT-X-DISCONTINUITY\n";

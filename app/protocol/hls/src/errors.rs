@@ -41,6 +41,8 @@ pub enum MediaErrorValue {
     WalrusUploadError,
     #[fail(display = "playlist upload error")]
     PlaylistUploadError,
+    #[fail(display = "live to vod upload error")]
+    LiveToVodUploadError,
 }
 
 impl From<FlvDemuxerError> for MediaError {

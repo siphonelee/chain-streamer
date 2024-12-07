@@ -79,12 +79,13 @@ impl FlvDataReceiver {
             //will do an optimization in the future.
             //todo
             if retry_count > 10 {
+                log::info!("RTMP steram ends detected! Clearing....");
                 self.media_processor.flush_remaining_data().await?;
                 break;
             }
         }
 
-        self.media_processor.clear_files()?;
+        self.media_processor.clear_files().await?;
         self.unsubscribe_from_stream_hub().await
     }
 

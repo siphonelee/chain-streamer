@@ -34,7 +34,7 @@ struct QueryWholeStreamsParams {
 }
 
 #[derive(Deserialize)]
-struct QueryM3u8Param {
+struct StreamNameParam {
     stream_name: String,
 }
 
@@ -105,8 +105,7 @@ impl ApiService {
         }
     }
 
-    async fn query_m3u8(&self, param: QueryM3u8Param) -> Response<Body> {
-        log::info!("query_m3u8_streams: {:?}", param.stream_name);
+    async fn query_m3u8(&self, param: StreamNameParam) -> Response<Body> {
         let (result_sender, result_receiver) = oneshot::channel();
         let hub_event = define::StreamHubEvent::ApiQueryM3u8 {
             name: param.stream_name,
@@ -314,7 +313,7 @@ pub async fn run(producer: StreamHubEventSender, port: usize) {
     };
 
     let api_get_m3u8 = api.clone();
-    let query_m3u8 = move |Query(params): Query<QueryM3u8Param>| async move {
+    let query_m3u8 = move |Query(params): Query<StreamNameParam>| async move {
         api_get_m3u8.query_m3u8(params).await
     };
 
