@@ -274,8 +274,20 @@ pub enum StreamHubEvent {
         result_sender: StatisticApiResultSender,
     },
     #[serde(skip_serializing)]
-    ApiQueryM3u8 { 
+    ApiQueryLiveM3u8 { 
         name: String,
+        result_sender: StatisticApiResultSender,    
+    },
+    #[serde(skip_serializing)]
+    ApiQueryVodM3u8 { 
+        index: u64,
+        result_sender: StatisticApiResultSender,    
+    },
+    #[serde(skip_serializing)]
+    ApiCreateStream { 
+        url: String,
+        name: String,
+        description: String,
         result_sender: StatisticApiResultSender,    
     },
     #[serde(skip_serializing)]

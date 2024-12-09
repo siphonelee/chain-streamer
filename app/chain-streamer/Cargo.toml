@@ -25,6 +25,7 @@ streamhub = { path = "../library/streamhub/" }
 commonlib = { path = "../library/common/" }
 rtmp = { path = "../protocol/rtmp/" }
 hls = { path = "../protocol/hls/" }
+tower-http = { version = "0.6.2", features = ["cors"] }
 
 [features]
 default = ["std"]

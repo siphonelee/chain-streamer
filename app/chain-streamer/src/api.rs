@@ -12,6 +12,8 @@ use {
         utils::Uuid,
     },
     tokio::{self, net::TcpListener, sync::oneshot},
+    axum::http::header::{HeaderValue, ACCESS_CONTROL_ALLOW_ORIGIN},
+    tower_http::cors::{Any, CorsLayer},
 };
 
 #[derive(serde::Serialize)]
@@ -39,6 +41,11 @@ struct StreamNameParam {
 }
 
 #[derive(Deserialize)]
+struct StreamIndexParam {
+    stream_index: u64,
+}
+
+#[derive(Deserialize)]
 struct QueryStreamParams {
     identifier: StreamIdentifier,
     // if specify uuid, then query the stream by uuid and filter no used data.
@@ -52,6 +59,14 @@ struct RelayStreamParams {
     identifier: Option<StreamIdentifier>,
     server_address: Option<String>,
     relay_type: RelayType,
+}
+
+#[derive(Deserialize)]
+struct CreateStreamParams {
+    //guaranteed by the user to be unique
+    url: String,
+    name: String,
+    description: String,
 }
 
 #[derive(Clone)]
@@ -105,9 +120,9 @@ impl ApiService {
         }
     }
 
-    async fn query_m3u8(&self, param: StreamNameParam) -> Response<Body> {
+    async fn query_live_m3u8(&self, param: StreamNameParam) -> Response<Body> {
         let (result_sender, result_receiver) = oneshot::channel();
-        let hub_event = define::StreamHubEvent::ApiQueryM3u8 {
+        let hub_event = define::StreamHubEvent::ApiQueryLiveM3u8 {
             name: param.stream_name,
             result_sender
         };
@@ -146,6 +161,28 @@ impl ApiService {
             }
         }
         */
+    }
+
+    async fn query_vod_m3u8(&self, param: StreamIndexParam) -> Response<Body> {
+        let (result_sender, result_receiver) = oneshot::channel();
+        let hub_event = define::StreamHubEvent::ApiQueryVodM3u8 {
+            index: param.stream_index,
+            result_sender
+        };
+        if let Err(err) = self.channel_event_producer.send(hub_event) {
+            log::error!("send api event error: {}", err);
+        }
+
+        let body = match result_receiver.await {
+            Ok(val) => {
+                val.as_str().unwrap().to_owned()
+            }
+            Err(err) => {
+                err.to_string()
+            }
+        };
+        let builder = Response::builder().header("Content-Type", "application/x-mpegURL");
+        return builder.body(Body::from(body)).unwrap();
     }
 
     async fn query_stream(&self, stream: QueryStreamParams) -> Json<ApiResponse<Value>> {
@@ -255,6 +292,38 @@ impl ApiService {
         }
     }
 
+    async fn create_live_stream(&self, stream_info: CreateStreamParams) -> Json<ApiResponse<Value>> {
+        let (result_sender, result_receiver) = oneshot::channel();
+        let hub_event = define::StreamHubEvent::ApiCreateStream {
+            url: stream_info.url,
+            name: stream_info.name,
+            description: stream_info.description,
+            result_sender
+        };
+        if let Err(err) = self.channel_event_producer.send(hub_event) {
+            log::error!("send api event error: {}", err);
+        }
+
+        match result_receiver.await {
+            Ok(val) => {
+                let api_response = ApiResponse {
+                    error_code: 0,
+                    desp: String::from("success"),
+                    data: serde_json::json!(val),
+                };
+                Json(api_response)
+            }
+            Err(err) => {
+                let api_response = ApiResponse {
+                    error_code: -1,
+                    desp: String::from("failed"),
+                    data: serde_json::json!(err.to_string()),
+                };
+                Json(api_response)
+            }
+        }
+    }
+
     async fn stop_relay_stream(&self, relay_info: RelayStreamParams) -> Json<ApiResponse<Value>> {
         let (result_sender, result_receiver) = oneshot::channel();
 
@@ -312,9 +381,14 @@ pub async fn run(producer: StreamHubEventSender, port: usize) {
         api_query_streams.query_whole_streams(params).await
     };
 
-    let api_get_m3u8 = api.clone();
-    let query_m3u8 = move |Query(params): Query<StreamNameParam>| async move {
-        api_get_m3u8.query_m3u8(params).await
+    let api_get_live_m3u8 = api.clone();
+    let query_live_m3u8 = move |Query(params): Query<StreamNameParam>| async move {
+        api_get_live_m3u8.query_live_m3u8(params).await
+    };
+
+    let api_get_vod_m3u8 = api.clone();
+    let query_vod_m3u8 = move |Query(params): Query<StreamIndexParam>| async move {
+        api_get_vod_m3u8.query_vod_m3u8(params).await
     };
 
     let api_query_stream = api.clone();
@@ -335,6 +409,11 @@ pub async fn run(producer: StreamHubEventSender, port: usize) {
         api_start_relay_stream.start_relay_stream(params).await
     };
 
+    let api_create_live_stream = api.clone();
+    let create_live_stream = move |Json(params): Json<CreateStreamParams>| async move {
+        api_create_live_stream.create_live_stream(params).await
+    };
+
     let api_stop_relay_stream = api.clone();
     let stop_relay_stream = move |Json(params): Json<RelayStreamParams>| async move {
         api_stop_relay_stream.stop_relay_stream(params).await
@@ -343,7 +422,10 @@ pub async fn run(producer: StreamHubEventSender, port: usize) {
     let app = Router::new()
         .route("/", get(root))
         .route("/api/query_whole_streams", get(query_streams))
-        .route("/api/query_m3u8", get(query_m3u8))
+        .route("/api/query_live_m3u8", get(query_live_m3u8))
+        .route("/api/query_vod_m3u8", get(query_vod_m3u8))
+        .route("/api/create_live_stream", post(create_live_stream))
+        .layer(CorsLayer::permissive())
         .route("/api/query_stream", post(query_stream))
         .route("/api/kick_off_client", post(kick_off))
         .route("/api/start_relay_stream", post(start_relay_stream))

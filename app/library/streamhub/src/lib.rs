@@ -736,15 +736,51 @@ impl StreamsHub {
                         log::error!("event_loop api error: {}", err);
                     }
                 }
-                StreamHubEvent::ApiQueryM3u8 {
+                StreamHubEvent::ApiQueryLiveM3u8 {
                     name,
                     result_sender,
                 } => {
                     // calvin
-                    let result = match move_call::get_playlist(name).await {
+                    let result = match move_call::get_live_playlist(name).await {
                         Ok(v) => Value::String(v),
                         Err(SuiError{value: err}) => {
-                            log::error!("get_playlist api error: {}", err);
+                            log::error!("get_live_playlist api error: {}", err);
+                            json!(err.to_string())
+                        }
+                    };
+
+                    if let Err(err) = result_sender.send(result) {
+                        log::error!("event_loop api error: {}", err);
+                    }
+                }
+                StreamHubEvent::ApiQueryVodM3u8 {
+                    index,
+                    result_sender,
+                } => {
+                    // calvin
+                    let result = match move_call::get_vod_playlist(index).await {
+                        Ok(v) => Value::String(v),
+                        Err(SuiError{value: err}) => {
+                            log::error!("get_vod_playlist api error: {}", err);
+                            json!(err.to_string())
+                        }
+                    };
+
+                    if let Err(err) = result_sender.send(result) {
+                        log::error!("event_loop api error: {}", err);
+                    }
+                }
+                StreamHubEvent::ApiCreateStream {
+                    url,
+                    name,
+                    description,
+                    result_sender,
+                } => {
+                    // calvin
+                    let result = match move_call::create_live_stream(url, name, description).await {
+                        Ok(v) => Value::String("OK".to_owned()),
+                        Err(SuiError{value: err}) => {
+                            log::error!("create_live_stream api error: {}", err);
                             json!(err.to_string())
                         }
                     };
