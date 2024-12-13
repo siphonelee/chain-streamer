@@ -185,13 +185,13 @@ pub async fn get_live_playlist(path_url: String) -> Result<String, SuiError> {
 
     // get the Sui client, the sender and recipient that we will use
     // for the transaction, and find the coin we use as gas       
-    let (sui, sender, _recipient) = setup_for_write().await
+    let (sui, sender, recipient) = setup_for_write().await
                                 .map_err(|_| SuiError{value: SuiErrorValue::SetupSuiClientError})?;
 
     // we need to find the coin we will use as gas
     let coins = sui
         .coin_read_api()
-        .get_coins(sender, None, None, None).await
+        .get_coins(recipient, None, None, None).await
         .map_err(|_| SuiError{value: SuiErrorValue::GetSuiCoinError})?;
     let coin = coins.data.into_iter().next().unwrap();
 
@@ -200,7 +200,7 @@ pub async fn get_live_playlist(path_url: String) -> Result<String, SuiError> {
 
     // create the transaction data that will be sent to the network
     let tx_data = TransactionData::new_programmable(
-        sender.clone(),
+        recipient.clone(),
         vec![coin.object_ref()],
         builder,
         gas_budget,
@@ -210,7 +210,7 @@ pub async fn get_live_playlist(path_url: String) -> Result<String, SuiError> {
     // sign transaction
     let keystore = FileBasedKeystore::new(&sui_config_dir().map_err(|_| SuiError{value: SuiErrorValue::SuiRPCError})?
                                 .join(SUI_KEYSTORE_FILENAME)).map_err(|_| SuiError{value: SuiErrorValue::FileKeyStoreError})?;
-    let signature = keystore.sign_secure(&sender, &tx_data, Intent::sui_transaction())
+    let signature = keystore.sign_secure(&recipient, &tx_data, Intent::sui_transaction())
                                 .map_err(|_| SuiError{value: SuiErrorValue::TransactionSignError})?;
     // execute the transaction
     let transaction_response = sui
@@ -476,7 +476,6 @@ pub async fn create_live_stream(url: String, name: String, description: String) 
 }
 
 pub async fn get_vod_playlist(index: u64) -> Result<String, SuiError> {
-    println!("index: {}", index);
     let mut ptb = ProgrammableTransactionBuilder::new();
     
     let streamer_id: ObjectID = STREAMER_ADDR.parse().map_err(|_| SuiError{value: SuiErrorValue::ParseError})?;
@@ -507,13 +506,13 @@ pub async fn get_vod_playlist(index: u64) -> Result<String, SuiError> {
 
     // get the Sui client, the sender and recipient that we will use
     // for the transaction, and find the coin we use as gas       
-    let (sui, sender, _recipient) = setup_for_write().await
+    let (sui, sender, recipient) = setup_for_write().await
                                 .map_err(|_| SuiError{value: SuiErrorValue::SetupSuiClientError})?;
 
     // we need to find the coin we will use as gas
     let coins = sui
         .coin_read_api()
-        .get_coins(sender, None, None, None).await
+        .get_coins(recipient, None, None, None).await
         .map_err(|_| SuiError{value: SuiErrorValue::GetSuiCoinError})?;
     let coin = coins.data.into_iter().next().unwrap();
 
@@ -522,7 +521,7 @@ pub async fn get_vod_playlist(index: u64) -> Result<String, SuiError> {
 
     // create the transaction data that will be sent to the network
     let tx_data = TransactionData::new_programmable(
-        sender.clone(),
+        recipient.clone(),
         vec![coin.object_ref()],
         builder,
         gas_budget,
@@ -532,7 +531,7 @@ pub async fn get_vod_playlist(index: u64) -> Result<String, SuiError> {
     // sign transaction
     let keystore = FileBasedKeystore::new(&sui_config_dir().map_err(|_| SuiError{value: SuiErrorValue::SuiRPCError})?
                                 .join(SUI_KEYSTORE_FILENAME)).map_err(|_| SuiError{value: SuiErrorValue::FileKeyStoreError})?;
-    let signature = keystore.sign_secure(&sender, &tx_data, Intent::sui_transaction())
+    let signature = keystore.sign_secure(&recipient, &tx_data, Intent::sui_transaction())
                                 .map_err(|_| SuiError{value: SuiErrorValue::TransactionSignError})?;
     // execute the transaction
     let transaction_response = sui
@@ -542,7 +541,10 @@ pub async fn get_vod_playlist(index: u64) -> Result<String, SuiError> {
             SuiTransactionBlockResponseOptions::full_content(),
             Some(ExecuteTransactionRequestType::WaitForLocalExecution),
         )
-        .await.map_err(|_| SuiError{value: SuiErrorValue::TransactionBlockExecuteError})?;
+        .await.map_err(|e| {
+            log::error!("{}", e);
+            SuiError{value: SuiErrorValue::TransactionBlockExecuteError}
+        })?;
     
     let res = match transaction_response.effects.unwrap() {
         SuiTransactionBlockEffects::V1(t) => {

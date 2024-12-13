@@ -3,11 +3,11 @@ use {
     super::{errors::{MediaError, MediaErrorValue}, ts::Ts}, bytes::BytesMut, rand::prelude::*, regex::Regex, std::{collections::VecDeque, fs::{self, File}, io::{Cursor, Write}, time::SystemTime}, 
 };
 
-const PUBLIC_AGGREGATORS: [&str;1] = [
+const PUBLIC_PUBLISHERS: [&str;1] = [
     // "http://127.0.0.1:31416",
     "https://publisher.walrus-testnet.walrus.space",   // fast? unstable
     
-    // tmp unavail "https://walrus-testnet-publisher.nodes.guru",  // fast
+    // "https://walrus-testnet-publisher.nodes.guru",  // fast
     // tmp unavail "http://walrus-publisher-testnet.overclock.run:9001",  // fast?
     
     // "https://walrus-testnet-publisher.nodeinfra.com",  // fast? unstable
@@ -33,7 +33,6 @@ pub struct Segment {
     pub name: String,
     path: String,
     pub is_eof: bool,
-    // calvin
     pub blob_id: String,
 }
 
@@ -120,12 +119,12 @@ impl M3u8 {
     }
 
     pub fn upload_walrus(&self, data: BytesMut) -> Result<String, MediaError> {
-        let count = PUBLIC_AGGREGATORS.len();
+        let count = PUBLIC_PUBLISHERS.len();
         let mut rng = rand::thread_rng();
         let index = (rng.gen::<f64>() * count as f64).trunc() as usize;
-        let aggr_url = PUBLIC_AGGREGATORS.get(index).unwrap();
+        let aggr_url = PUBLIC_PUBLISHERS.get(index).unwrap();
         
-        let publish_url = (*aggr_url).to_owned() + "/v1/store";
+        let publish_url = (*aggr_url).to_owned() + "/v1/store?epochs=10";
         log::info!("publish to: {}", publish_url);
 
         let now = SystemTime::now();
@@ -168,7 +167,6 @@ impl M3u8 {
         if segment_count >= self.live_ts_count {
             let segment = self.segments.pop_front().unwrap();
             if !self.need_record {
-                // calvin TODO: delete from walrus (or not, depending on epoch mechanism)
                 self.ts_handler.delete(segment.path);
             }
 
@@ -190,14 +188,12 @@ impl M3u8 {
     }
 
     pub async fn clear(&mut self) -> Result<(), MediaError> {
-        // TODO calvin: upload vod m3u8 to contract, and delete live stream from contract
         if self.need_record {
             let vod_m3u8_path = format!("{}/{}", self.m3u8_folder, self.vod_m3u8_name);
             let mut file_handler = File::create(vod_m3u8_path).unwrap();
             self.vod_m3u8_content += "#EXT-X-ENDLIST\n";
             file_handler.write_all(self.vod_m3u8_content.as_bytes())?;
 
-            // calvin: upload full m3u8 to contarct
             live_to_vod(self.ts_handler.get_live_path(), &self.vod_m3u8_content).await.map_err(|_| MediaError{value: MediaErrorValue::LiveToVodUploadError})?;
         } else {
             for segment in &self.segments {
@@ -262,13 +258,11 @@ impl M3u8 {
         let mut file_handler = File::create(m3u8_path).unwrap();
         file_handler.write_all(m3u8_content.as_bytes())?;
 
-        // calvin: upload m3u8 to contract
         upload_playlist_to_contract(self.ts_handler.get_live_path(), &m3u8_content_blob).await.map_err(|_| MediaError{value: MediaErrorValue::PlaylistUploadError})?;
 
         Ok(m3u8_content)
     }
 
-    // calvin: change name to walrus blob url
     pub fn update_vod_m3u8(&mut self, segment: &Segment) {
         if segment.discontinuity {
             self.vod_m3u8_content += "#EXT-X-DISCONTINUITY\n";
@@ -276,7 +270,6 @@ impl M3u8 {
         self.vod_m3u8_content += format!(
             "#EXTINF:{:.3}\n{}\n",
             segment.duration as f64 / 1000.0,
-            // calvin segment.name
             segment.blob_id
         )
         .as_str();

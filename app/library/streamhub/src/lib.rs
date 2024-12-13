@@ -748,9 +748,10 @@ impl StreamsHub {
                             json!(err.to_string())
                         }
                     };
+                    // log::error!("is_closed: {}", result_sender.is_closed());
 
                     if let Err(err) = result_sender.send(result) {
-                        log::error!("event_loop api error: {}", err);
+                        log::error!("event_loop api error: {:?}", err);
                     }
                 }
                 StreamHubEvent::ApiQueryVodM3u8 {
@@ -765,9 +766,9 @@ impl StreamsHub {
                             json!(err.to_string())
                         }
                     };
-
+ 
                     if let Err(err) = result_sender.send(result) {
-                        log::error!("event_loop api error: {}", err);
+                        log::error!("event_loop api error: {:?}", err);
                     }
                 }
                 StreamHubEvent::ApiCreateStream {

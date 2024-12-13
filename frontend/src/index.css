@@ -1,0 +1,38 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  font-family: Inter, system-ui, Avenir, Helvetica, Arial, sans-serif;
+}
+
+button[id^="radix-:r"].Button_buttonVariants_variant_primary__x1s81q1, 
+button[id^="radix-:r"].Button_buttonVariants_variant_primary__x1s81q1, 
+button[aria-controls^="radix-:"].Button_buttonVariants_variant_primary__x1s81q1,
+button[aria-controls^="radix-:"] .Button_buttonVariants_variant_primary__x1s81q1,
+button[id^="radix-:r"].Button_buttonVariants_variant_primary__x1s81q1:hover, 
+button[id^="radix-:r"].Button_buttonVariants_variant_primary__x1s81q1:hover, 
+button[aria-controls^="radix-:"].Button_buttonVariants_variant_primary__x1s81q1:hover,
+button[aria-controls^="radix-:"] .Button_buttonVariants_variant_primary__x1s81q1:hover {
+  background-color: rgb(79 70 229 / var(--tw-bg-opacity, 1)); 
+  color: rgb(255 255 255 / var(--tw-text-opacity, 1));
+  font-weight: var(--dapp-kit-fontWeights-normal);
+}
+
+button[id^="radix-:r"].Text_textVariants_mono_true__2bv1ur7, 
+button[id^="radix-:r"] .Text_textVariants_mono_true__2bv1ur7,
+button[id^="radix-:r"].Text_textVariants_mono_true__2bv1ur7:hover, 
+button[id^="radix-:r"] .Text_textVariants_mono_true__2bv1ur7:hover {
+  color: rgb(255 255 255 / var(--tw-text-opacity, 1));
+  font-weight: var(--dapp-kit-fontWeights-normal);
+}
+
+p.text-sm {
+  max-width: 720px;
+}
+
+button:disabled {
+  background-color: #ccc;
+  color: #666;
+  cursor: not-allowed;
+}

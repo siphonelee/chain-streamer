@@ -140,27 +140,6 @@ impl ApiService {
         };
         let builder = Response::builder().header("Content-Type", "application/x-mpegURL");
         return builder.body(Body::from(body)).unwrap();
-
-        /* calvin
-        match result_receiver.await {
-            Ok(val) => {
-                let api_response = ApiResponse {
-                    error_code: 0,
-                    desp: String::from("succ"),
-                    data: val,
-                };
-                Json(api_response)
-            }
-            Err(err) => {
-                let api_response = ApiResponse {
-                    error_code: -1,
-                    desp: String::from("failed"),
-                    data: serde_json::json!(err.to_string()),
-                };
-                Json(api_response)
-            }
-        }
-        */
     }
 
     async fn query_vod_m3u8(&self, param: StreamIndexParam) -> Response<Body> {
